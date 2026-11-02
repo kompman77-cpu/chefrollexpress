@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#141019">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Шеф-Повар">
 <title>Шеф-Повар — Ролл-Экспресс</title>
 <style>
 html,body{margin:0;padding:0;background:#141019;overflow:hidden;position:fixed;inset:0}
@@ -16,7 +21,7 @@ html,body{margin:0;padding:0;background:#141019;overflow:hidden;position:fixed;i
 /* ===== ХОЛСТ И МАСШТАБ ===== */
 const cvs=document.getElementById('c');
 const ctx=cvs.getContext('2d');
-let LW=240,LH=420,buf=null,bctx=null,SCALE=2;
+let LW=240,LH=420,buf=null,bctx=null,SCALE=2,offX=0,offY=0;
 const CTRL_H=46,GAP=26,SHELF_Y=40;
 const G={state:'menu',t:0,score:0,best:0,level:1,combo:0,
  items:[],tower:[],pops:[],parts:[],steam:[],decor:[],rats:[],ratT:2.5,
@@ -32,9 +37,11 @@ function resize(){
  cvs.width=Math.round(w*dpr);cvs.height=Math.round(h*dpr);
  cvs.style.width=w+'px';cvs.style.height=h+'px';
  LW=240;
- LH=Math.max(360,Math.min(600,Math.round(LW*h/Math.max(1,w))));
- SCALE=Math.max(1,Math.min(3,Math.floor(cvs.width/LW)));
- buf=document.createElement('canvas');buf.width=LW*SCALE;buf.height=LH*SCALE;
+LH=Math.max(360,Math.min(720,Math.round(LW*h/Math.max(1,w))));
+SCALE=Math.min(cvs.width/LW,cvs.height/LH);
+offX=(cvs.width-LW*SCALE)/2;
+offY=(cvs.height-LH*SCALE)/2;
+buf=document.createElement('canvas');buf.width=Math.round(LW*SCALE);buf.height=Math.round(LH*SCALE);
  bctx=buf.getContext('2d');
  G.floorY=LH-CTRL_H-GAP;
  G.ctrlTop=LH-CTRL_H;
@@ -207,6 +214,8 @@ function startGame(){
  G.siteBtn=null;G.overBtn=null;G.overReason='';
  G.bug=null;G.roach=null;G.roachT=30;G.roachBanner=0;G.smoke=[];
  fallSpeed=45;spawnInt=1.15;mouseProb=0.05;
+  fallSpeed=45;spawnInt=1.15;mouseProb=0.05;
+ try{if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen();}catch(err){}
 }
 function startCook(){
  if(G.state!=='play'||G.tower.length===0||G.bug)return;
@@ -1557,9 +1566,7 @@ function ptFromEvent(e){
  const r=cvs.getBoundingClientRect();
  const dx=(e.clientX-r.left)*(cvs.width/r.width);
  const dy=(e.clientY-r.top)*(cvs.height/r.height);
- const s=Math.max(1,Math.min(Math.floor(cvs.width/LW),Math.floor(cvs.height/LH)));
- const ox=(cvs.width-LW*s)/2,oy=(cvs.height-LH*s)/2;
- return {x:(dx-ox)/s,y:(dy-oy)/s};
+ return{x:(dx-offX)/SCALE,y:(dy-offY)/SCALE};
 }
 cvs.addEventListener('pointerdown',function(e){
  e.preventDefault();
@@ -1597,6 +1604,37 @@ cvs.addEventListener('pointermove',function(e){
  const p=ptFromEvent(e);
  G.chefTarget=Math.max(20,Math.min(LW-20,p.x));
 });
+ if(!window.PointerEvent){
+ cvs.addEventListener('touchstart',function(e){
+  e.preventDefault();initAudio();
+  if(AC&&AC.state==='suspended')AC.resume();
+  const p=ptFromEvent(e.touches[0]);
+  const id='t'+e.touches[0].identifier;
+  if(G.state==='menu'){startGame();return;}
+  if(G.state==='over'||G.state==='win'){
+   if(hitZone(p,G.siteBtn)){try{window.open('https://ролл-экспресс.рф/catalog/novinki','_blank');}catch(err){}return;}
+   if(hitZone(p,G.overBtn))G.state='menu';
+   return;
+  }
+  if(G.state==='pause'){G.state='play';return;}
+  if(p.y<18){
+   if(p.x>LW-26)muted=!muted;
+   else if(p.x>LW-48)G.state='pause';
+   return;
+  }
+  if(hitCook(p)){G.cookPress=0.18;startCook();return;}
+  pointers[id]='F';
+  G.chefTarget=Math.max(20,Math.min(LW-20,p.x));
+ },{passive:false});
+ cvs.addEventListener('touchmove',function(e){
+  e.preventDefault();
+  const p=ptFromEvent(e.touches[0]);
+  G.chefTarget=Math.max(20,Math.min(LW-20,p.x));
+ },{passive:false});
+ cvs.addEventListener('touchend',function(e){
+  delete pointers['t'+e.changedTouches[0].identifier];
+ },{passive:false});
+}
 function clearPointer(e){delete pointers[e.pointerId];}
 cvs.addEventListener('pointerup',clearPointer);
 cvs.addEventListener('pointercancel',clearPointer);
@@ -1631,8 +1669,8 @@ function frame(now){
  else if(G.state==='win'){G.t+=dt;updateFx(dt);}
  render();
  drawStrip();
- ctx.fillStyle='#141019';ctx.fillRect(0,0,cvs.width,cvs.height);
- ctx.drawImage(buf,0,0,LW*SCALE,LH*SCALE,0,0,LW*SCALE,LH*SCALE);
+  ctx.fillStyle='#141019';ctx.fillRect(0,0,cvs.width,cvs.height);
+ ctx.drawImage(buf,offX,offY);
 }
 requestAnimationFrame(frame);
 </script>
